@@ -18,11 +18,11 @@ npm install vite-plugin-inline-css-modules
 ```
 
 ```ts
-import inlineCssModules from 'vite-plugin-inline-css-modules'
+import inlineCssModules from 'vite-plugin-inline-css-modules';
 
 export default {
   plugins: [inlineCssModules()],
-}
+};
 ```
 
 ```ts
@@ -48,7 +48,7 @@ Every single CSS-in-JS solution i've seen suffers from the same problem: it can'
 This plugin simply generates a CSS module using the contents of the string. This allows it to integrate with PostCSS
 and things like Tailwind or UnoCSS with ease.
 
-In addition, a lot of solutions also have an implicit bundling cost. This differs in that it is completely based on CSS modules. 
+In addition, a lot of solutions also have an implicit bundling cost. This differs in that it is completely based on CSS modules.
 No addition javascript is added when using this plugin.
 
 ### Caveats
@@ -60,13 +60,13 @@ No addition javascript is added when using this plugin.
   Why? because at compile time, this plugin transforms:
 
   ```ts
-  const classes = css``
+  const classes = css``;
   ```
 
   into:
 
   ```ts
-  import classes from 'virtual:inline-css-modules/App-0.module.css'
+  import classes from 'virtual:inline-css-modules/App-0.module.css';
   ```
 
 ### Plugin Options

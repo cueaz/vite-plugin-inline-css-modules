@@ -1,11 +1,11 @@
 {
-  "include": ["src"],
+  "include": ["src", "global.d.ts"],
   "compilerOptions": {
     "declaration": true,
     "esModuleInterop": true,
     "lib": ["ESNext", "DOM"],
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "Bundler",
     "noUnusedLocals": true,
     "outDir": "dist",
     "strict": true,

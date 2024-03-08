@@ -1,74 +1,129 @@
-import type { Plugin } from 'vite'
+import { posix as path } from 'node:path';
+import type { Plugin, ViteDevServer } from 'vite';
+import MagicString from 'magic-string';
 
-type SupportedExtension = 'css' | 'scss' | 'sass' | 'styl' | 'less'
-type PluginConfig = {
-  fileMatch?: RegExp
-  tagName?: string
-  preprocessor?: SupportedExtension | ((filename: string) => SupportedExtension)
-}
-
+const extensions = ['css', 'sass', 'scss', 'less', 'styl'] as const;
 const matchInlineCssModules =
-  /(?:const|var|let)\s*(\w+)(?:\s*:.*)?\s*=\s*(\w+)\s*`([\s\S]*?)`/gm
+  /(?:const|var|let)\s*(\w+)(?:\s*:.*)?\s*=\s*(\w+)\s*`([\s\S]*?)`/gm;
+const matchScripts = /\.(j|t)sx?$/;
 
-export const css = (_: TemplateStringsArray): Record<string, string> => ({})
+const virtualExtCss = (ext: string) => `.inline.module.${ext}`;
+const virtualExtWrapper = (ext: string) => virtualExtCss(ext) + '.wrapper';
 
-export default (config: PluginConfig = {}): Plugin => {
-  const fileMatch = config.fileMatch ?? /\.(tsx|jsx|js|vue|svelte)$/
-  const tagName = config.tagName ?? 'css'
-  const preprocessor = config.preprocessor ?? 'css'
+const inlineCssModules = (): Plugin => {
+  let server: ViteDevServer;
 
-  let cssModules: Record<string, string> = {}
-  const virtualModuleId = 'virtual:inline-css-modules'
+  const invalidateModule = (absoluteId: string) => {
+    const { moduleGraph } = server;
+    const modules = moduleGraph.getModulesByFile(absoluteId);
+
+    if (modules) {
+      for (const module of modules) {
+        moduleGraph.invalidateModule(module);
+
+        module.lastHMRTimestamp =
+          module.lastInvalidationTimestamp || Date.now();
+      }
+    }
+  };
+
+  const fileMap = new Map<string, string>();
+
   return {
     name: 'inline-css-modules',
     enforce: 'pre',
-    buildStart() {
-      cssModules = {}
+
+    configureServer(devServer) {
+      server = devServer;
     },
-    resolveId(id) {
-      if (!id.startsWith(virtualModuleId)) return undefined
-      return '\0' + id
-    },
-    load(id) {
-      if (!id.startsWith(`\0${virtualModuleId}`)) return undefined
 
-      const file = id
-        .slice(`\0${virtualModuleId}`.length + 1)
-        .replace(/\?used$/, '')
-      return cssModules[file]
-    },
-    transform(src, id) {
-      if (!fileMatch.test(id)) return undefined
+    resolveId(source, importer) {
+      if (!importer) {
+        return;
+      }
 
-      src = src.replace(
-        /import\s*{\s*inlineCss\s*\s*(?:as\s*\w+\s*)?}\s*from\s*('|"|`)vite-plugin-inline-css-modules\1;?/gm,
-        ''
-      )
+      const id = path.join(path.dirname(importer), source);
+      const [validId] = id.split('?');
 
-      src = src.replaceAll(matchInlineCssModules, (substring, ...args) => {
-        const [variableName, tag, css] = args
-
-        if (tag !== tagName) return substring
-
-        let baseFilename = id.slice(id.lastIndexOf('/') + 1)
-        baseFilename = baseFilename.slice(0, baseFilename.lastIndexOf('.'))
-        let cnt = 0
-        const ext =
-          typeof preprocessor == 'function'
-            ? preprocessor(baseFilename)
-            : preprocessor
-        let filename = `${baseFilename}-${cnt}.module.${ext}`
-        while (cssModules[filename]) {
-          cnt++
-          filename = `${baseFilename}-${cnt}.module.${ext}`
-        }
-        cssModules[filename] = css
-        return `import ${variableName} from "virtual:inline-css-modules/${filename}"\n`
-      })
-      return {
-        code: src,
-        map: null,
+      if (
+        extensions.some(
+          (ext) =>
+            validId.endsWith(virtualExtCss(ext)) ||
+            validId.endsWith(virtualExtWrapper(ext)),
+        )
+      ) {
+        return id;
       }
     },
-  }
-}
+
+    load(id) {
+      const [validId] = id.split('?');
+
+      if (fileMap.has(validId)) {
+        return fileMap.get(validId);
+      }
+    },
+
+    transform(code, id) {
+      const [validId] = id.split('?');
+
+      if (!matchScripts.test(validId)) {
+        return;
+      }
+
+      const { dir, base } = path.parse(validId);
+
+      const src = new MagicString(code);
+
+      src.replaceAll(matchInlineCssModules, (substring, name, tag, css) => {
+        if (!extensions.includes(tag)) {
+          return substring;
+        }
+
+        const extCss = virtualExtCss(tag);
+        const extWrapper = virtualExtWrapper(tag);
+
+        const baseSuffix = base + '-' + name;
+        const validIdCss = baseSuffix + extCss;
+        const validIdWrapper = baseSuffix + extWrapper;
+
+        const absoluteIdCss = path.join(dir, validIdCss);
+        const absoluteIdWrapper = path.join(dir, validIdWrapper);
+
+        const changed =
+          fileMap.has(absoluteIdCss) && fileMap.get(absoluteIdCss) !== css;
+
+        fileMap.set(absoluteIdCss, css);
+        fileMap.set(
+          absoluteIdWrapper,
+          `
+            import styles from './${validIdCss}';
+            export default new Proxy(styles, {
+              get(target, prop) {
+                if (prop in target) {
+                  return target[prop];
+                } else {
+                  throw new Error('Unknown class: ' + prop);
+                }
+              }
+            });
+          `,
+        );
+
+        if (server && changed) {
+          invalidateModule(absoluteIdCss);
+          invalidateModule(absoluteIdWrapper);
+        }
+
+        return `import ${name} from './${validIdWrapper}';\n`;
+      });
+
+      return {
+        code: src.toString(),
+        map: src.generateMap({ hires: true }),
+      };
+    },
+  };
+};
+
+export default inlineCssModules;
