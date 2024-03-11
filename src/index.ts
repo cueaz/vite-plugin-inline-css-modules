@@ -7,8 +7,15 @@ const matchInlineCssModules =
   /(?:const|var|let)\s*(\w+)(?:\s*:.*)?\s*=\s*(\w+)\s*`([\s\S]*?)`/gm;
 const matchScripts = /\.(j|t)sx?$/;
 
+const pluginName = 'inline-css-modules';
+
+const virtualUtilsId = 'virtual:' + pluginName;
+const resolveUtilsId = (id: string) => '\0' + id;
+
 const virtualExtCss = (ext: string) => `.inline.module.${ext}`;
 const virtualExtWrapper = (ext: string) => virtualExtCss(ext) + '.wrapper';
+
+const splitQuery = (id: string) => id.split('?');
 
 const inlineCssModules = (): Plugin => {
   let server: ViteDevServer;
@@ -27,10 +34,25 @@ const inlineCssModules = (): Plugin => {
     }
   };
 
-  const fileMap = new Map<string, string>();
+  const resolvedIdMap = new Map<string, string>();
+
+  resolvedIdMap.set(
+    resolveUtilsId(virtualUtilsId),
+    `
+      export const wrap = (styles) => new Proxy(styles, {
+        get(target, prop) {
+          if (prop in target) {
+            return target[prop];
+          } else {
+            throw new Error('Unknown class: ' + prop);
+          }
+        }
+      });
+    `,
+  );
 
   return {
-    name: 'inline-css-modules',
+    name: pluginName,
     enforce: 'pre',
 
     configureServer(devServer) {
@@ -42,8 +64,14 @@ const inlineCssModules = (): Plugin => {
         return;
       }
 
+      const [validSource] = splitQuery(source);
+
+      if (validSource === virtualUtilsId) {
+        return resolveUtilsId(source);
+      }
+
       const id = path.join(path.dirname(importer), source);
-      const [validId] = id.split('?');
+      const [validId] = splitQuery(id);
 
       if (
         extensions.some(
@@ -57,21 +85,21 @@ const inlineCssModules = (): Plugin => {
     },
 
     load(id) {
-      const [validId] = id.split('?');
+      const [validId] = splitQuery(id);
 
-      if (fileMap.has(validId)) {
-        return fileMap.get(validId);
+      if (resolvedIdMap.has(validId)) {
+        return resolvedIdMap.get(validId);
       }
     },
 
     transform(code, id) {
-      const [validId] = id.split('?');
+      const [validId] = splitQuery(id);
 
       if (!matchScripts.test(validId)) {
         return;
       }
 
-      const { dir, base } = path.parse(validId);
+      const base = path.basename(validId);
 
       const src = new MagicString(code);
 
@@ -80,39 +108,32 @@ const inlineCssModules = (): Plugin => {
           return substring;
         }
 
-        const baseSuffix = base + '-' + name;
-        const validIdCss = baseSuffix + virtualExtCss(tag);
-        const validIdWrapper = baseSuffix + virtualExtWrapper(tag);
+        const baseCss = name + virtualExtCss(tag);
+        const baseWrapper = name + virtualExtWrapper(tag);
 
-        const absoluteIdCss = path.join(dir, validIdCss);
-        const absoluteIdWrapper = path.join(dir, validIdWrapper);
+        const validIdCss = path.join(validId, baseCss);
+        const validIdWrapper = path.join(validId, baseWrapper);
 
         const changed =
-          fileMap.has(absoluteIdCss) && fileMap.get(absoluteIdCss) !== css;
+          resolvedIdMap.has(validIdCss) &&
+          resolvedIdMap.get(validIdCss) !== css;
 
-        fileMap.set(absoluteIdCss, css);
-        fileMap.set(
-          absoluteIdWrapper,
+        resolvedIdMap.set(validIdCss, css);
+        resolvedIdMap.set(
+          validIdWrapper,
           `
-            import styles from './${validIdCss}';
-            export default new Proxy(styles, {
-              get(target, prop) {
-                if (prop in target) {
-                  return target[prop];
-                } else {
-                  throw new Error('Unknown class: ' + prop);
-                }
-              }
-            });
+            import { wrap } from '${virtualUtilsId}';
+            import styles from './${baseCss}';
+            export default wrap(styles);
           `,
         );
 
         if (server && changed) {
-          invalidateModule(absoluteIdCss);
-          invalidateModule(absoluteIdWrapper);
+          invalidateModule(validIdCss);
+          invalidateModule(validIdWrapper);
         }
 
-        return `import ${name} from './${validIdWrapper}';\n`;
+        return `import ${name} from './${path.join(base, baseWrapper)}';\n`;
       });
 
       return {

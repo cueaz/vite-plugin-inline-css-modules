@@ -81,7 +81,7 @@ In addition, a lot of solutions also have an implicit bundling cost. This differ
   into:
 
   ```ts
-  import classes from './[basename]-classes.inline.module.css.wrapper';
+  import classes from './[basename]/classes.inline.module.css.wrapper';
   ```
 
 ### Plugin Options

@@ -1,6 +1,6 @@
 {
   "name": "@cueaz/vite-plugin-inline-css-modules",
-  "version": "1.0.7",
+  "version": "1.0.10",
   "description": "Write CSS modules without leaving your javascript!",
   "author": "Mia Korennykh",
   "license": "MIT",
