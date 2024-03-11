@@ -80,12 +80,9 @@ const inlineCssModules = (): Plugin => {
           return substring;
         }
 
-        const extCss = virtualExtCss(tag);
-        const extWrapper = virtualExtWrapper(tag);
-
         const baseSuffix = base + '-' + name;
-        const validIdCss = baseSuffix + extCss;
-        const validIdWrapper = baseSuffix + extWrapper;
+        const validIdCss = baseSuffix + virtualExtCss(tag);
+        const validIdWrapper = baseSuffix + virtualExtWrapper(tag);
 
         const absoluteIdCss = path.join(dir, validIdCss);
         const absoluteIdWrapper = path.join(dir, validIdWrapper);

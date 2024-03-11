@@ -1,7 +1,13 @@
 # vite-plugin-inline-css-modules
 
-[![npm](https://img.shields.io/npm/v/vite-plugin-inline-css-modules.svg)](https://www.npmjs.com/package/vite-plugin-inline-css-modules)
+[![npm](https://img.shields.io/npm/v/@cueaz/vite-plugin-inline-css-modules.svg)](https://www.npmjs.com/package/@cueaz/vite-plugin-inline-css-modules)
 [![Code style: Prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg)](https://github.com/prettier/prettier)
+
+> [!NOTE]
+> This package is a fork of [bluskript/vite-plugin-inline-css-modules](https://github.com/bluskript/vite-plugin-inline-css-modules) with a few incompatible changes.
+>
+> - Explicit tag function name for preprocessor
+> - Runtime error on accessing undefined class names
 
 > Write CSS modules without leaving your javascript!
 
@@ -13,21 +19,30 @@
 
 ### Usage
 
-```
-npm install vite-plugin-inline-css-modules
+```sh
+pnpm add -D @cueaz/vite-plugin-inline-css-modules
 ```
 
+vite.config.ts
+
 ```ts
-import inlineCssModules from 'vite-plugin-inline-css-modules';
+import inlineCssModules from '@cueaz/vite-plugin-inline-css-modules';
 
 export default {
   plugins: [inlineCssModules()],
 };
 ```
 
-```ts
-import { css } from 'vite-plugin-inline-css-modules'
+src/env.d.ts
 
+```ts
+/// <reference types="@cueaz/vite-plugin-inline-css-modules/global" />
+```
+
+src/Root.tsx
+
+```ts
+// use sass`` scss`` less`` styl`` for preprocessors
 const classes = css`
   .root {
     background-color: #1f1;
@@ -35,6 +50,7 @@ const classes = css`
   }
 `
 
+// accessing undefined classes.abc will throw a runtime error
 export const Root = () => <div class={classes.root}>Hello world</div>
 ```
 
@@ -49,7 +65,6 @@ This plugin simply generates a CSS module using the contents of the string. This
 and things like Tailwind or UnoCSS with ease.
 
 In addition, a lot of solutions also have an implicit bundling cost. This differs in that it is completely based on CSS modules.
-No addition javascript is added when using this plugin.
 
 ### Caveats
 
@@ -66,16 +81,12 @@ No addition javascript is added when using this plugin.
   into:
 
   ```ts
-  import classes from 'virtual:inline-css-modules/App-0.module.css';
+  import classes from './[basename]-classes.inline.module.css.wrapper';
   ```
 
 ### Plugin Options
 
-- `tagName`: The CSS template tag name to match for.
-  - Default: `css`
-  - If you are using other CSS-in-JS frameworks, you can use import aliases during destructuring and set the tagName value to the new name to prevent conflicts.
-- `fileMatch`: The regex pattern used to match files to inline.
-  - Default: `/\.(tsx|jsx|js|vue|svelte)$/`
+None
 
 ### Help
 
