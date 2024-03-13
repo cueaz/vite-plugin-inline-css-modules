@@ -4,7 +4,7 @@ import MagicString from 'magic-string';
 
 const extensions = ['css', 'sass', 'scss', 'less', 'styl'] as const;
 const matchInlineCssModules =
-  /(?:const|var|let)\s*(\w+)(?:\s*:.*)?\s*=\s*(\w+)\s*`([\s\S]*?)`/gm;
+  /(export\s)?\s*(?:const|var|let)\s+(\w+)(?:\s*:.*)?\s*=\s*(\w+)\s*`([\s\S]*?)`/gm;
 const matchScripts = /\.(j|t)sx?$/;
 
 const pluginName = 'inline-css-modules';
@@ -103,38 +103,46 @@ const inlineCssModules = (): Plugin => {
 
       const src = new MagicString(code);
 
-      src.replaceAll(matchInlineCssModules, (substring, name, tag, css) => {
-        if (!extensions.includes(tag)) {
-          return substring;
-        }
+      src.replaceAll(
+        matchInlineCssModules,
+        (substring, exp, name, tag, css) => {
+          if (!extensions.includes(tag)) {
+            return substring;
+          }
 
-        const baseCss = name + virtualExtCss(tag);
-        const baseWrapper = name + virtualExtWrapper(tag);
+          const baseCss = name + virtualExtCss(tag);
+          const baseWrapper = name + virtualExtWrapper(tag);
 
-        const validIdCss = path.join(validId, baseCss);
-        const validIdWrapper = path.join(validId, baseWrapper);
+          const validIdCss = path.join(validId, baseCss);
+          const validIdWrapper = path.join(validId, baseWrapper);
 
-        const changed =
-          resolvedIdMap.has(validIdCss) &&
-          resolvedIdMap.get(validIdCss) !== css;
+          const changed =
+            resolvedIdMap.has(validIdCss) &&
+            resolvedIdMap.get(validIdCss) !== css;
 
-        resolvedIdMap.set(validIdCss, css);
-        resolvedIdMap.set(
-          validIdWrapper,
-          `
-            import { wrap } from '${virtualUtilsId}';
-            import styles from './${baseCss}';
-            export default wrap(styles);
-          `,
-        );
+          resolvedIdMap.set(validIdCss, css);
+          resolvedIdMap.set(
+            validIdWrapper,
+            `
+              import { wrap } from '${virtualUtilsId}';
+              import styles from './${baseCss}';
+              export default wrap(styles);
+            `,
+          );
 
-        if (server && changed) {
-          invalidateModule(validIdCss);
-          invalidateModule(validIdWrapper);
-        }
+          if (server && changed) {
+            invalidateModule(validIdCss);
+            invalidateModule(validIdWrapper);
+          }
 
-        return `import ${name} from './${path.join(base, baseWrapper)}';\n`;
-      });
+          const fromWrapper = `from './${path.join(base, baseWrapper)}';\n`;
+          let code = `import ${name} ${fromWrapper}`;
+          if (exp) {
+            code += `export { default as ${name} } ${fromWrapper}`;
+          }
+          return code;
+        },
+      );
 
       return {
         code: src.toString(),
