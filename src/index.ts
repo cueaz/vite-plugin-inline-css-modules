@@ -5,7 +5,7 @@ import MagicString from 'magic-string';
 const extensions = ['css', 'sass', 'scss', 'less', 'styl'] as const;
 const matchInlineCssModules =
   /(export\s)?\s*(?:const|var|let)\s+(\w+)(?:\s*:.*)?\s*=\s*(\w+)\s*`([\s\S]*?)`/gm;
-const matchScripts = /\.(j|t)sx?$/;
+const matchScripts = /\.[cm]?[jt]sx?$/;
 
 const pluginName = 'inline-css-modules';
 
@@ -136,11 +136,11 @@ const inlineCssModules = (): Plugin => {
           }
 
           const fromWrapper = `from './${path.join(base, baseWrapper)}';\n`;
-          let code = `import ${name} ${fromWrapper}`;
+          let ret = `import ${name} ${fromWrapper}`;
           if (exp) {
-            code += `export { default as ${name} } ${fromWrapper}`;
+            ret += `export { default as ${name} } ${fromWrapper}`;
           }
-          return code;
+          return ret;
         },
       );
 
@@ -153,3 +153,13 @@ const inlineCssModules = (): Plugin => {
 };
 
 export default inlineCssModules;
+
+declare global {
+  type InlineCssModuleClasses = { readonly [key: string]: string };
+
+  function css(strings: TemplateStringsArray): InlineCssModuleClasses;
+  function sass(strings: TemplateStringsArray): InlineCssModuleClasses;
+  function scss(strings: TemplateStringsArray): InlineCssModuleClasses;
+  function less(strings: TemplateStringsArray): InlineCssModuleClasses;
+  function styl(strings: TemplateStringsArray): InlineCssModuleClasses;
+}

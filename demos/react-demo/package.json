@@ -12,12 +12,12 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@types/react": "^18.2.64",
-    "@types/react-dom": "^18.2.21",
+    "@cueaz/vite-plugin-inline-css-modules": "link:../..",
+    "@types/react": "^18.2.73",
+    "@types/react-dom": "^18.2.23",
     "@vitejs/plugin-react": "^4.2.1",
     "sirv-cli": "^2.0.2",
-    "vite": "link:../../node_modules/vite",
-    "@cueaz/vite-plugin-inline-css-modules": "link:../..",
+    "vite": "^5.2.7",
     "vite-plugin-inspect": "^0.8.3"
   }
 }

@@ -36,7 +36,7 @@ export default {
 src/env.d.ts
 
 ```ts
-/// <reference types="@cueaz/vite-plugin-inline-css-modules/global" />
+/// <reference types="@cueaz/vite-plugin-inline-css-modules" />
 ```
 
 src/Root.tsx
